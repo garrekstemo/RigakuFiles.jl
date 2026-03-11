@@ -1,10 +1,15 @@
 using RigakuFiles
 using Dates
 using Test
+using Aqua
 
 const DATADIR = joinpath(@__DIR__, "data")
 
 @testset "RigakuFiles" begin
+
+    @testset "Code quality (Aqua.jl)" begin
+        Aqua.test_all(RigakuFiles)
+    end
 
     @testset "Simplified .txt format" begin
         scan = read_scan(joinpath(DATADIR, "simple.txt"))
