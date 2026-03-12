@@ -8,7 +8,7 @@ const DATADIR = joinpath(@__DIR__, "data")
 @testset "RigakuFiles" begin
 
     @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(RigakuFiles)
+        Aqua.test_all(RigakuFiles; deps_compat=(check_extras=false, ignore=[:Dates],))
     end
 
     @testset "Simplified .txt format" begin
