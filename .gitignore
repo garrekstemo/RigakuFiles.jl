@@ -1,1 +1,11 @@
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+docs/build/
 Manifest.toml
+
+.vscode/*
+.DS_Store
+
+scratch/*
+lcov.info

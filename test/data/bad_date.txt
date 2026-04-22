@@ -1,0 +1,5 @@
+*FILE_SAMPLE "BadDateSample"
+*MEAS_SCAN_START_TIME "not a date"
+*MEAS_SCAN_UNIT_X "deg"
+10.0 100.0
+11.0 200.0

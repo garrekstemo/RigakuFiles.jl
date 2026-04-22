@@ -1,39 +1,72 @@
 # RigakuFiles.jl
 
+[![CI](https://github.com/garrekstemo/RigakuFiles.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/garrekstemo/RigakuFiles.jl/actions/workflows/CI.yml)
+[![codecov](https://codecov.io/gh/garrekstemo/RigakuFiles.jl/graph/badge.svg)](https://codecov.io/gh/garrekstemo/RigakuFiles.jl)
+[![stable](https://img.shields.io/badge/docs-stable-blue)](https://garrekstemo.github.io/RigakuFiles.jl/stable/)
+[![dev](https://img.shields.io/badge/docs-dev-blue)](https://garrekstemo.github.io/RigakuFiles.jl/dev/)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-Julia parser for Rigaku SmartLab XRD data files (`.ras` and `.txt` formats).
+Read Rigaku X-ray diffractometer output files (SmartLab, MiniFlex, Ultima) in Julia.
+
+## Highlights
+
+- Canonical `.ras` (with `*RAS_HEADER_START` / `*RAS_INT_START` markers) and simplified `.txt` exports
+- Multi-scan files in a single read
+- Common metadata surfaced as typed fields; the full raw header is preserved too
+- Three-column attenuator data tolerated
+- Works with either Unix or Windows line endings
 
 ## Installation
 
 ```julia
-using Pkg
-Pkg.add(url="https://github.com/garrekstemo/RigakuFiles.jl")
+julia>]
+pkg> add RigakuFiles
 ```
 
-## Usage
+```julia
+using RigakuFiles
+```
+
+## Quick start
 
 ```julia
 using RigakuFiles
 
-# Read a single scan
-scan = read_scan("data/sample.ras")
+scan = read_scan("mysample.ras")
+# or, equivalently:
+scan = RigakuScan("mysample.ras")
 
-scan.two_theta  # 2θ values
-scan.intensity  # counts
-scan.metadata   # measurement parameters
-
-# Read multi-scan files
-scans = read_scans("data/multi_scan.ras")
-
-# X-ray wavelengths
-wavelength_alpha1(scan)
-wavelength_alpha2(scan)
+scan.sample      # "ZIF-62 Test"
+scan.target      # "Cu"
+scan.wavelength  # 1.540593  (Kα1, Å)
+scan.x           # Vector{Float64} of 2θ values
+scan.y           # Vector{Float64} of intensities
 ```
 
-## Supported Formats
+## Multi-scan files
 
-| Format | Description |
-|--------|-------------|
-| `.ras` | Rigaku native binary/text format (single and multi-scan) |
-| `.txt` | Simplified text export |
+```julia
+scans = read_scans("multiscan.ras")
+for s in scans
+    println(s.comment, ": ", length(s), " points")
+end
+```
+
+Calling `read_scan` on a multi-scan file returns the first scan and emits a warning.
+
+## Accessors
+
+```julia
+wavelength_alpha1(scan)   # Kα1 wavelength (Å)
+wavelength_alpha2(scan)   # Kα2 wavelength (Å), or 0.0 if not recorded
+wavelength_beta(scan)     # Kβ wavelength (Å),  or 0.0 if not recorded
+scan_step(scan)           # Scan step size
+scan_speed(scan)          # Scan speed
+detector(scan)            # Detector name, e.g. "HyPix3000(H)"
+```
+
+Anything not exposed by the accessors is available in `scan.metadata` (a `Dict{String, String}`). See the [documentation](https://garrekstemo.github.io/RigakuFiles.jl/stable/) for the full field list and file-format notes.
+
+## Issues and contributions
+
+If you run into a Rigaku file this package mis-parses — especially one from a firmware version or instrument line not yet covered — please [open an issue](https://github.com/garrekstemo/RigakuFiles.jl/issues). A minimal excerpt of the offending file (sample names can be redacted) is the most helpful thing to attach.

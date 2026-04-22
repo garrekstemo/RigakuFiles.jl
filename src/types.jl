@@ -1,8 +1,20 @@
 """
     AbstractRigakuSpectrum
 
-Abstract type for Rigaku instrument data. All concrete types provide
-`x` and `y` data vectors plus a `metadata` dictionary.
+Abstract supertype for Rigaku instrument data.
+
+## Interface
+
+Concrete subtypes must provide:
+
+- `x::Vector{Float64}` — independent-axis values (typically 2θ or angle)
+- `y::Vector{Float64}` — dependent-axis values (typically intensity)
+- `metadata::Dict{String, String}` — raw header key/value pairs, with
+  annotation lines (`#key=value`) stored under `"_" * key`
+
+Providing these three fields enables `length`, `size`, and the accessor
+helpers in this package (`wavelength_alpha1`, `scan_step`, `detector`, …)
+to work out of the box.
 """
 abstract type AbstractRigakuSpectrum end
 
@@ -12,20 +24,34 @@ abstract type AbstractRigakuSpectrum end
 A single scan from a Rigaku instrument file (`.ras` or exported `.txt`).
 
 # Fields
-- `sample::String` — sample name (`FILE_SAMPLE`)
-- `comment::String` — file comment (`FILE_COMMENT`)
-- `instrument::String` — instrument model (`FILE_SYSTEM_NAME`)
+- `sample::String` — sample name (`FILE_SAMPLE`); `""` if not recorded
+- `comment::String` — file comment (`FILE_COMMENT`); `""` if not recorded
+- `instrument::String` — instrument model (`FILE_SYSTEM_NAME`); `""` if not recorded
 - `target::String` — X-ray target element (`HW_XG_TARGET_NAME`), e.g. `"Cu"`
-- `wavelength::Float64` — Kα1 wavelength in Angstrom (`HW_XG_WAVE_LENGTH_ALPHA1`)
+- `wavelength::Float64` — Kα1 wavelength in ångström (`HW_XG_WAVE_LENGTH_ALPHA1`); `0.0` if not recorded
 - `scan_axis::String` — scan axis name (`MEAS_SCAN_AXIS_X`), e.g. `"TwoThetaTheta"`
 - `scan_mode::String` — scan mode (`MEAS_SCAN_MODE`), e.g. `"CONTINUOUS"`
-- `start_time::DateTime` — scan start time (`MEAS_SCAN_START_TIME`)
-- `end_time::DateTime` — scan end time (`MEAS_SCAN_END_TIME`)
-- `xunits::String` — x-axis units (`MEAS_SCAN_UNIT_X`), e.g. `"deg"`
-- `yunits::String` — y-axis units (`MEAS_SCAN_UNIT_Y`), e.g. `"cps"`
+- `start_time::DateTime` — scan start (`MEAS_SCAN_START_TIME`); `DateTime(1)` if not recorded
+- `end_time::DateTime` — scan end (`MEAS_SCAN_END_TIME`); `DateTime(1)` if not recorded
+- `xunits::String` — x-axis units (`MEAS_SCAN_UNIT_X`), defaults to `"deg"`
+- `yunits::String` — y-axis units (`MEAS_SCAN_UNIT_Y` or `#Intensity_unit`), `""` if not recorded
 - `x::Vector{Float64}` — angle values (typically 2θ)
 - `y::Vector{Float64}` — intensity values
-- `metadata::Dict{String, String}` — all raw header key-value pairs
+- `metadata::Dict{String, String}` — all raw header key/value pairs;
+  annotation lines (`#key=value`) are stored under `"_" * key`
+
+# Sentinels for missing fields
+
+To keep the struct concretely typed, missing fields use fixed sentinel values:
+
+| Field type | Sentinel |
+|------------|----------|
+| `String`   | `""` |
+| `Float64`  | `0.0` |
+| `DateTime` | `DateTime(1)` (year 0001) |
+
+For strict "present vs. missing" checks, inspect the raw `metadata` dict
+instead of relying on the sentinel.
 """
 struct RigakuScan <: AbstractRigakuSpectrum
     sample::String
