@@ -19,8 +19,8 @@ Read Rigaku X-ray diffractometer output files (SmartLab, MiniFlex, Ultima) in Ju
 ## Installation
 
 ```julia
-julia>]
-pkg> add RigakuFiles
+using Pkg
+Pkg.add(url="https://github.com/garrekstemo/RigakuFiles.jl")
 ```
 
 ```julia

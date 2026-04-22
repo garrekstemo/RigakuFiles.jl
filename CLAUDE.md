@@ -16,7 +16,7 @@ A small Julia package that parses text output from Rigaku X-ray diffractometers 
 src/
 ├── RigakuFiles.jl   # module, using Dates, include order, exports
 ├── types.jl         # AbstractRigakuSpectrum, RigakuScan, Base.show methods
-├── parser.jl        # read_scan / read_scans / RigakuScan(path) constructor,
+├── parser.jl        # read_scan / read_scans,
 │                    #   _parse_ras, _parse_txt, _build_scan, _parse_datetime
 └── utils.jl         # wavelength_alpha1/2/beta, scan_step, scan_speed, detector
 
@@ -92,5 +92,4 @@ The test suite covers:
 - `detector()` fallback to `HW_COUNTER_NAME-0`
 - `Show` methods with both present and missing timestamps
 - `AbstractString` dispatch (SubString paths)
-- `RigakuScan(path)` ≡ `read_scan(path)`
 - Aqua quality checks (ambiguities, piracy, stale deps, compat bounds)
