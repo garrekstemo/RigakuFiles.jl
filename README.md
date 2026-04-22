@@ -32,7 +32,8 @@ using RigakuFiles
 ```julia
 using RigakuFiles
 
-scan = read_scan("mysample.ras")
+# Single-scan file; throws if the file actually contains >1 scan
+scan = only(RigakuFile("mysample.ras"))
 
 scan.sample      # "ZIF-62 Test"
 scan.target      # "Cu"
@@ -43,14 +44,23 @@ scan.y           # Vector{Float64} of intensities
 
 ## Multi-scan files
 
+`RigakuFile` is an `AbstractVector{RigakuScan}`, so iteration, indexing, and `length` all work directly:
+
 ```julia
-scans = read_scans("multiscan.ras")
-for s in scans
+file = RigakuFile("multiscan.ras")
+length(file)     # number of scans
+file[1]          # first scan
+
+for s in file
     println(s.comment, ": ", length(s), " points")
 end
 ```
 
-Calling `read_scan` on a multi-scan file returns the first scan and emits a warning.
+If you want the first scan of a possibly-multi-scan file and are fine ignoring the rest:
+
+```julia
+scan = first(RigakuFile("maybe_multi.ras"))
+```
 
 ## Accessors
 

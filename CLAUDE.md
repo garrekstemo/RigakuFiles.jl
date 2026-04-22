@@ -1,13 +1,13 @@
 # RigakuFiles.jl
 
-A small Julia package that parses text output from Rigaku X-ray diffractometers into a concrete `RigakuScan` struct. No analysis code lives here — downstream packages build on top.
+A small Julia package that parses text output from Rigaku X-ray diffractometers into a `RigakuFile` container of `RigakuScan` structs. No analysis code lives here — downstream packages build on top.
 
 ## What this package does
 
 - Parses Rigaku `.ras` (canonical, with `*RAS_HEADER_START` / `*RAS_INT_START` section markers).
 - Parses the simplified `.txt` export (same `*KEY "VALUE"` metadata, no section markers).
-- Handles multi-scan files: [`read_scans`](@ref) returns a `Vector{RigakuScan}`; [`read_scan`](@ref) returns the first and warns.
-- Exposes common header fields (sample, target, wavelength, scan axis/mode, timestamps, units) as struct fields.
+- Models the file as a container: [`RigakuFile`](@ref) `<: AbstractVector{RigakuScan}`. Navigate with Base verbs (`only`, `first`, `length`, indexing, iteration).
+- Exposes common header fields (sample, target, wavelength, scan axis/mode, timestamps, units) as struct fields on `RigakuScan`.
 - Preserves all raw header key/value pairs in `scan.metadata`.
 
 ## Project structure
@@ -15,9 +15,9 @@ A small Julia package that parses text output from Rigaku X-ray diffractometers 
 ```
 src/
 ├── RigakuFiles.jl   # module, using Dates, include order, exports
-├── types.jl         # AbstractRigakuSpectrum, RigakuScan, Base.show methods
-├── parser.jl        # read_scan / read_scans,
-│                    #   _parse_ras, _parse_txt, _build_scan, _parse_datetime
+├── types.jl         # AbstractRigakuSpectrum, RigakuScan, RigakuFile, Base.show methods
+├── parser.jl        # RigakuFile(path) outer constructor,
+│                    #   _parse_file, _parse_ras, _parse_txt, _build_scan, _parse_datetime
 └── utils.jl         # wavelength_alpha1/2/beta, scan_step, scan_speed, detector
 
 test/
@@ -38,13 +38,14 @@ docs/src/
 
 | Symbol | Purpose |
 |--------|---------|
-| `read_scan(path)` | Load a single scan; warns and returns first if multi-scan. |
-| `read_scans(path)` | Load all scans; returns `Vector{RigakuScan}`. |
+| `RigakuFile(path)` | Single entry point; returns an `AbstractVector{RigakuScan}` container. Throws `ArgumentError` on empty files. |
 | `RigakuScan` | Concrete struct; 14 fields plus raw `metadata` dict. |
 | `AbstractRigakuSpectrum` | Supertype; interface: `x`, `y`, `metadata`. |
 | `wavelength_alpha1/2/beta(s)` | Kα1 / Kα2 / Kβ wavelengths (Å). |
 | `scan_step(s)`, `scan_speed(s)` | Scan parameters. |
 | `detector(s)` | Detector name; falls back between `HW_COUNTER_SELECT_NAME` and `HW_COUNTER_NAME-0`. |
+
+Navigate with Base array verbs: `only(file)` (strict single-scan), `first(file)`, `file[i]`, iteration, `length(file)`.
 
 ## Design decisions
 
@@ -92,4 +93,5 @@ The test suite covers:
 - `detector()` fallback to `HW_COUNTER_NAME-0`
 - `Show` methods with both present and missing timestamps
 - `AbstractString` dispatch (SubString paths)
+- `RigakuFile` container: `only`, `first`, indexing, iteration, subtype assertion
 - Aqua quality checks (ambiguities, piracy, stale deps, compat bounds)

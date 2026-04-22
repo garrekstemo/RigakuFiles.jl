@@ -8,40 +8,16 @@ const _ANNOTATION_RE = r"^#(\S+?)=(.*)"
 const _DATE_FORMATS = (dateformat"m/d/y H:M:S", dateformat"y/m/d H:M:S")
 
 """
-    read_scan(path::AbstractString) -> RigakuScan
+    RigakuFile(path::AbstractString) -> RigakuFile
 
-Read a single scan from a Rigaku `.ras` or exported `.txt` file.
-Auto-detects the file format (canonical RAS with section markers vs
-simplified text export).
+Read a Rigaku `.ras` or exported `.txt` file into a [`RigakuFile`](@ref)
+container holding one or more [`RigakuScan`](@ref)s.
 
-If the file contains multiple scans, returns the first and emits a warning.
-Use [`read_scans`](@ref) to load all scans from a multi-scan file.
+Auto-detects the file format (canonical RAS with `*RAS_HEADER_START` /
+`*RAS_INT_START` section markers vs simplified `.txt` export).
 
-# Throws
-- `ArgumentError` if the file is empty or contains no parseable scans.
-- `SystemError` if the file cannot be read from disk.
-
-# Examples
-```julia
-scan = read_scan("data/sample.txt")
-scan.x       # 2θ values
-scan.y       # intensity values
-scan.target  # "Cu"
-```
-"""
-function read_scan(path::AbstractString)
-    scans = read_scans(path)
-    if length(scans) > 1
-        @warn "File contains $(length(scans)) scans, returning first. Use read_scans() for all."
-    end
-    return scans[1]
-end
-
-"""
-    read_scans(path::AbstractString) -> Vector{RigakuScan}
-
-Read all scans from a Rigaku `.ras` or exported `.txt` file.
-Returns a vector of `RigakuScan` objects (length 1 for single-scan files).
+Use Base array verbs to navigate: `only(file)` for a strict single-scan
+assertion, `first(file)`, `file[i]`, iteration, `length(file)`.
 
 # Throws
 - `ArgumentError` if the file is empty or contains no parseable scans.
@@ -49,24 +25,27 @@ Returns a vector of `RigakuScan` objects (length 1 for single-scan files).
 
 # Examples
 ```julia
-scans = read_scans("data/multiscan.ras")
-for s in scans
-    println(s.sample, ": ", length(s.x), " points")
+# single-scan file (throws if the file actually contains >1 scan)
+scan = only(RigakuFile("sample.ras"))
+
+# multi-scan file
+file = RigakuFile("multiscan.ras")
+length(file)   # number of scans
+for scan in file
+    println(scan.sample, ": ", length(scan.x), " points")
 end
 ```
 """
-function read_scans(path::AbstractString)
+RigakuFile(path::AbstractString) = RigakuFile(String(path), _parse_file(path))
+
+function _parse_file(path::AbstractString)
     lines = readlines(path)
     isempty(lines) && throw(ArgumentError("Empty file: $path"))
 
     has_ras_markers = any(l -> startswith(l, "*RAS_DATA_START") ||
                                 startswith(l, "*RAS_HEADER_START"), lines)
 
-    if has_ras_markers
-        return _parse_ras(lines)
-    else
-        return [_parse_txt(lines)]
-    end
+    return has_ras_markers ? _parse_ras(lines) : [_parse_txt(lines)]
 end
 
 # Parse simplified .txt export (no *RAS_HEADER_START section markers).
