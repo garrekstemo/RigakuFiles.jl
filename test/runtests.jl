@@ -8,13 +8,14 @@ const DATADIR = joinpath(@__DIR__, "data")
 @testset "RigakuFiles" begin
 
     @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(RigakuFiles)
+        Aqua.test_all(RigakuFiles; deps_compat = (check_extras = false,))
     end
 
     @testset "Simplified .txt format" begin
         scan = read_scan(joinpath(DATADIR, "simple.txt"))
 
         @test scan isa RigakuScan
+        @test scan isa AbstractRigakuSpectrum
         @test scan.sample == "ZIF-62 Test"
         @test scan.comment == "Test powder scan"
         @test scan.instrument == "SmartLabXE"
@@ -45,6 +46,15 @@ const DATADIR = joinpath(@__DIR__, "data")
         scans = read_scans(joinpath(DATADIR, "simple.txt"))
         @test length(scans) == 1
         @test scans[1].sample == "ZIF-62 Test"
+    end
+
+    @testset "RigakuScan constructor is an alias for read_scan" begin
+        from_constructor = RigakuScan(joinpath(DATADIR, "simple.txt"))
+        from_function = read_scan(joinpath(DATADIR, "simple.txt"))
+        @test from_constructor isa RigakuScan
+        @test from_constructor.sample == from_function.sample
+        @test from_constructor.x == from_function.x
+        @test from_constructor.y == from_function.y
     end
 
     @testset "Canonical .ras format — multi-scan" begin
@@ -100,6 +110,13 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test length(scan) == 2
         @test scan.x == [10.0, 20.0]
         @test scan.y == [50.0, 60.0]
+
+        # Accessor sentinels for missing metadata
+        @test wavelength_alpha2(scan) == 0.0
+        @test wavelength_beta(scan) == 0.0
+        @test scan_step(scan) == 0.0
+        @test scan_speed(scan) == 0.0
+        @test detector(scan) == ""
     end
 
     @testset "Show methods" begin
@@ -116,6 +133,13 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test contains(full, "Cu")
         @test contains(full, "1.540593")
         @test contains(full, "TwoThetaTheta")
+        @test contains(full, "Acquired:")
+
+        # Show on a scan with missing timestamp should not print Acquired line
+        minimal = read_scan(joinpath(DATADIR, "minimal.txt"))
+        minimal_show = sprint(show, MIME("text/plain"), minimal)
+        @test !contains(minimal_show, "Acquired:")
+        @test !contains(minimal_show, "0001")
     end
 
     @testset "Raw metadata access" begin
@@ -129,6 +153,60 @@ const DATADIR = joinpath(@__DIR__, "data")
         # Annotations stored with _ prefix
         @test scan.metadata["_Intensity_unit"] == "cps"
         @test scan.metadata["_Attenuator_coefficient"] == "1.0000"
+    end
+
+    @testset "Error paths" begin
+        @test_throws ArgumentError read_scan(joinpath(DATADIR, "empty.txt"))
+        @test_throws ArgumentError read_scans(joinpath(DATADIR, "empty.txt"))
+
+        # Non-existent file surfaces a SystemError from readlines
+        missing_path = joinpath(DATADIR, "does_not_exist.txt")
+        @test_throws SystemError read_scan(missing_path)
+    end
+
+    @testset "RAS header with no *RAS_INT_START block" begin
+        # Header-only RAS file: the header parses, the data vectors are empty.
+        scan = read_scan(joinpath(DATADIR, "no_int_block.ras"))
+        @test scan.sample == "HeaderOnly"
+        @test scan.target == "Cu"
+        @test isempty(scan.x)
+        @test isempty(scan.y)
+        @test length(scan) == 0
+    end
+
+    @testset "Alternate datetime format y/m/d H:M:S" begin
+        scan = read_scan(joinpath(DATADIR, "iso_date.txt"))
+        @test scan.start_time == DateTime(2025, 3, 14, 9, 0, 0)
+        @test scan.end_time == DateTime(2025, 3, 14, 9, 5, 0)
+    end
+
+    @testset "Unparseable datetime warns and returns DateTime(1)" begin
+        scan = @test_logs (:warn, r"Could not parse Rigaku datetime") match_mode = :any read_scan(joinpath(DATADIR, "bad_date.txt"))
+        @test scan.start_time == DateTime(1)
+        @test scan.sample == "BadDateSample"
+    end
+
+    @testset "Legacy HW_COUNTER_NAME-0 fallback" begin
+        scan = read_scan(joinpath(DATADIR, "counter_name.ras"))
+        @test detector(scan) == "D/teX Ultra"
+        @test length(scan) == 2
+    end
+
+    @testset "CRLF line endings" begin
+        scan = read_scan(joinpath(DATADIR, "crlf.txt"))
+        @test scan.sample == "CRLFSample"
+        @test scan.target == "Cu"
+        @test scan.wavelength ≈ 1.540593
+        @test scan.x == [10.0, 11.0, 12.0]
+        @test scan.y == [100.0, 200.0, 300.0]
+    end
+
+    @testset "AbstractString path arguments" begin
+        # SubString is the canonical case that breaks String-typed signatures
+        full_path = joinpath(DATADIR, "simple.txt")
+        sub_path = SubString(full_path, 1, length(full_path))
+        scan = read_scan(sub_path)
+        @test scan.sample == "ZIF-62 Test"
     end
 
 end

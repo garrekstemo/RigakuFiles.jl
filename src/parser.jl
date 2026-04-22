@@ -4,8 +4,12 @@ const _METADATA_RE = r"^\*(\S+)\s+\"(.*)\""
 # Annotation line pattern: #key=value
 const _ANNOTATION_RE = r"^#(\S+?)=(.*)"
 
+# Datetime formats seen in Rigaku firmware exports
+const _DATE_FORMATS = (dateformat"m/d/y H:M:S", dateformat"y/m/d H:M:S")
+
 """
-    read_scan(path::String) → RigakuScan
+    read_scan(path::AbstractString) -> RigakuScan
+    RigakuScan(path::AbstractString)
 
 Read a single scan from a Rigaku `.ras` or exported `.txt` file.
 Auto-detects the file format (canonical RAS with section markers vs
@@ -14,15 +18,22 @@ simplified text export).
 If the file contains multiple scans, returns the first and emits a warning.
 Use [`read_scans`](@ref) to load all scans from a multi-scan file.
 
+# Throws
+- `ArgumentError` if the file is empty or contains no parseable scans.
+- `SystemError` if the file cannot be read from disk.
+
 # Examples
 ```julia
 scan = read_scan("data/sample.txt")
-scan.x   # 2θ values
-scan.y   # intensity values
+# or equivalently:
+scan = RigakuScan("data/sample.txt")
+
+scan.x       # 2θ values
+scan.y       # intensity values
 scan.target  # "Cu"
 ```
 """
-function read_scan(path::String)
+function read_scan(path::AbstractString)
     scans = read_scans(path)
     if length(scans) > 1
         @warn "File contains $(length(scans)) scans, returning first. Use read_scans() for all."
@@ -30,11 +41,17 @@ function read_scan(path::String)
     return scans[1]
 end
 
+RigakuScan(path::AbstractString) = read_scan(path)
+
 """
-    read_scans(path::String) → Vector{RigakuScan}
+    read_scans(path::AbstractString) -> Vector{RigakuScan}
 
 Read all scans from a Rigaku `.ras` or exported `.txt` file.
 Returns a vector of `RigakuScan` objects (length 1 for single-scan files).
+
+# Throws
+- `ArgumentError` if the file is empty or contains no parseable scans.
+- `SystemError` if the file cannot be read from disk.
 
 # Examples
 ```julia
@@ -44,11 +61,12 @@ for s in scans
 end
 ```
 """
-function read_scans(path::String)
+function read_scans(path::AbstractString)
     lines = readlines(path)
-    isempty(lines) && error("Empty file: $path")
+    isempty(lines) && throw(ArgumentError("Empty file: $path"))
 
-    has_ras_markers = any(l -> startswith(l, "*RAS_DATA_START"), lines)
+    has_ras_markers = any(l -> startswith(l, "*RAS_DATA_START") ||
+                                startswith(l, "*RAS_HEADER_START"), lines)
 
     if has_ras_markers
         return _parse_ras(lines)
@@ -57,7 +75,9 @@ function read_scans(path::String)
     end
 end
 
-# Parse simplified .txt export (no section markers)
+# Parse simplified .txt export (no *RAS_HEADER_START section markers).
+# Metadata lines begin with `*`, annotations with `#`, everything else
+# is treated as whitespace-separated numeric data (first two columns).
 function _parse_txt(lines::Vector{String})
     metadata = Dict{String, String}()
     x = Float64[]
@@ -75,22 +95,17 @@ function _parse_txt(lines::Vector{String})
                 metadata["_" * m.captures[1]] = strip(m.captures[2])
             end
         else
-            parts = split(line)
-            if length(parts) >= 2
-                xval = tryparse(Float64, parts[1])
-                yval = tryparse(Float64, parts[2])
-                if xval !== nothing && yval !== nothing
-                    push!(x, xval)
-                    push!(y, yval)
-                end
-            end
+            _push_data!(x, y, line)
         end
     end
 
     return _build_scan(metadata, x, y)
 end
 
-# Parse canonical .ras format (with *RAS_DATA_START markers)
+# Parse canonical .ras format with *RAS_HEADER_START / *RAS_INT_START markers.
+# Supports multi-scan files where each scan is wrapped in its own header/data
+# block. The outer *RAS_DATA_START / *RAS_DATA_END pair is tolerated but not
+# required.
 function _parse_ras(lines::Vector{String})
     scans = RigakuScan[]
     i = 1
@@ -101,7 +116,6 @@ function _parse_ras(lines::Vector{String})
             metadata = Dict{String, String}()
             i += 1
 
-            # Read header block
             while i <= n && !startswith(lines[i], "*RAS_HEADER_END")
                 m = match(_METADATA_RE, lines[i])
                 if m !== nothing
@@ -111,21 +125,12 @@ function _parse_ras(lines::Vector{String})
             end
             i += 1  # skip *RAS_HEADER_END
 
-            # Read data block
             x = Float64[]
             y = Float64[]
             if i <= n && startswith(lines[i], "*RAS_INT_START")
                 i += 1
                 while i <= n && !startswith(lines[i], "*RAS_INT_END")
-                    parts = split(lines[i])
-                    if length(parts) >= 2
-                        xval = tryparse(Float64, parts[1])
-                        yval = tryparse(Float64, parts[2])
-                        if xval !== nothing && yval !== nothing
-                            push!(x, xval)
-                            push!(y, yval)
-                        end
-                    end
+                    _push_data!(x, y, lines[i])
                     i += 1
                 end
                 i += 1  # skip *RAS_INT_END
@@ -137,11 +142,29 @@ function _parse_ras(lines::Vector{String})
         end
     end
 
-    isempty(scans) && error("No scans found in RAS file")
+    isempty(scans) && throw(ArgumentError("No scans found in RAS file: missing *RAS_HEADER_START markers"))
     return scans
 end
 
-# Construct a RigakuScan from parsed metadata and data vectors
+# Parse one whitespace-separated data line and append the first two numeric
+# columns to `x` and `y`. Third-column attenuator values (present in some
+# `.ras` exports) are intentionally ignored. Lines that fail to parse as
+# numbers are silently skipped, matching the behavior of Rigaku's own tools.
+function _push_data!(x::Vector{Float64}, y::Vector{Float64}, line::AbstractString)
+    parts = split(line)
+    length(parts) >= 2 || return
+    xval = tryparse(Float64, parts[1])
+    yval = tryparse(Float64, parts[2])
+    if xval !== nothing && yval !== nothing
+        push!(x, xval)
+        push!(y, yval)
+    end
+    return
+end
+
+# Build a RigakuScan from a parsed metadata dict and x/y data vectors.
+# Missing header keys fall back to empty strings, `0.0`, or `DateTime(1)`
+# — see the RigakuScan docstring for the full sentinel table.
 function _build_scan(metadata::Dict{String, String}, x::Vector{Float64}, y::Vector{Float64})
     sample = get(metadata, "FILE_SAMPLE", "")
     comment = get(metadata, "FILE_COMMENT", "")
@@ -155,7 +178,6 @@ function _build_scan(metadata::Dict{String, String}, x::Vector{Float64}, y::Vect
     scan_mode = get(metadata, "MEAS_SCAN_MODE", "")
 
     xunits = get(metadata, "MEAS_SCAN_UNIT_X", "deg")
-    # Check both metadata and annotations for intensity units
     yunits = get(metadata, "MEAS_SCAN_UNIT_Y",
                  get(metadata, "_Intensity_unit", ""))
 
@@ -167,16 +189,16 @@ function _build_scan(metadata::Dict{String, String}, x::Vector{Float64}, y::Vect
                       xunits, yunits, x, y, metadata)
 end
 
-# Parse datetime strings in Rigaku format (MM/DD/YYYY HH:MM:SS)
-function _parse_datetime(s::String)
+# Parse a datetime string using the formats Rigaku firmware is known to emit.
+# Returns `DateTime(1)` (year 0001) as the "missing" sentinel when the input
+# is empty; warns once per bad string and returns the same sentinel when the
+# input is non-empty but unparseable.
+function _parse_datetime(s::AbstractString)
     isempty(s) && return DateTime(1)
-    try
-        return DateTime(s, dateformat"m/d/y H:M:S")
-    catch
-        try
-            return DateTime(s, dateformat"y/m/d H:M:S")
-        catch
-            return DateTime(1)
-        end
+    for fmt in _DATE_FORMATS
+        dt = tryparse(DateTime, s, fmt)
+        dt !== nothing && return dt
     end
+    @warn "Could not parse Rigaku datetime: $(repr(s))"
+    return DateTime(1)
 end
