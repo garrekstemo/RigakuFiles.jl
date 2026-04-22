@@ -112,3 +112,42 @@ function Base.show(io::IO, ::MIME"text/plain", s::RigakuScan)
         print(io, "  Acquired:   ", Dates.format(s.start_time, "yyyy-mm-dd HH:MM:SS"))
     end
 end
+
+"""
+    RigakuFile <: AbstractVector{RigakuScan}
+
+Container for all scans in a Rigaku `.ras` or `.txt` file.
+
+Construct with `RigakuFile(path)` and navigate with Base array verbs:
+
+| Intent | Expression |
+|---|---|
+| strict "exactly one scan" | `only(file)` — throws if length ≠ 1 |
+| first of many | `first(file)` |
+| all as a `Vector` | `collect(file)` |
+| count | `length(file)` |
+| index | `file[i]` |
+| iterate | `for scan in file; …; end` |
+
+See also [`RigakuScan`](@ref).
+"""
+struct RigakuFile <: AbstractVector{RigakuScan}
+    path::String
+    scans::Vector{RigakuScan}
+end
+
+Base.size(f::RigakuFile) = size(f.scans)
+Base.getindex(f::RigakuFile, i::Int) = f.scans[i]
+Base.IndexStyle(::Type{RigakuFile}) = IndexLinear()
+
+function Base.show(io::IO, ::MIME"text/plain", f::RigakuFile)
+    n = length(f.scans)
+    print(io, n, "-element RigakuFile")
+    !isempty(f.path) && print(io, " from ", repr(f.path))
+    println(io, ":")
+    for (i, s) in enumerate(f.scans)
+        print(io, " [", i, "] ")
+        show(io, s)
+        i < n && println(io)
+    end
+end

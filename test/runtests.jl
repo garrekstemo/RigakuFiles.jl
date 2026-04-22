@@ -12,7 +12,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     end
 
     @testset "Simplified .txt format" begin
-        scan = read_scan(joinpath(DATADIR, "simple.txt"))
+        scan = only(RigakuFile(joinpath(DATADIR, "simple.txt")))
 
         @test scan isa RigakuScan
         @test scan isa AbstractRigakuSpectrum
@@ -42,18 +42,20 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test scan_speed(scan) ≈ 2.0
         @test detector(scan) == "HyPix3000(H)"
 
-        # read_scans returns a vector
-        scans = read_scans(joinpath(DATADIR, "simple.txt"))
-        @test length(scans) == 1
-        @test scans[1].sample == "ZIF-62 Test"
+        # RigakuFile is a 1-element AbstractVector for single-scan files
+        file = RigakuFile(joinpath(DATADIR, "simple.txt"))
+        @test length(file) == 1
+        @test file[1].sample == "ZIF-62 Test"
+        @test first(file).sample == "ZIF-62 Test"
     end
 
     @testset "Canonical .ras format — multi-scan" begin
-        scans = read_scans(joinpath(DATADIR, "multiscan.ras"))
+        file = RigakuFile(joinpath(DATADIR, "multiscan.ras"))
 
-        @test length(scans) == 2
+        @test length(file) == 2
+        @test size(file) == (2,)
 
-        s1 = scans[1]
+        s1 = file[1]
         @test s1.comment == "Low angle scan"
         @test s1.sample == "TestSample"
         @test s1.target == "Cu"
@@ -63,20 +65,24 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test s1.y == [100.5, 150.2, 300.8]
         @test s1.start_time == DateTime(2025, 1, 15, 10, 30, 0)
 
-        s2 = scans[2]
+        s2 = file[2]
         @test s2.comment == "High angle scan"
         @test length(s2) == 3
         @test s2.x == [20.0, 20.5, 21.0]
         @test s2.y == [80.3, 90.1, 110.7]
         @test s2.start_time == DateTime(2025, 1, 15, 10, 35, 0)
 
-        # read_scan on multi-scan file returns first + warns
-        scan = @test_logs (:warn, r"2 scans") read_scan(joinpath(DATADIR, "multiscan.ras"))
-        @test scan.comment == "Low angle scan"
+        # only() throws on multi-scan files (strict "I expect exactly one")
+        @test_throws ArgumentError only(file)
+
+        # first() and iteration still work without warning
+        @test first(file).comment == "Low angle scan"
+        comments = [s.comment for s in file]
+        @test comments == ["Low angle scan", "High angle scan"]
     end
 
     @testset "Three-column .ras format" begin
-        scan = read_scan(joinpath(DATADIR, "three_column.ras"))
+        scan = only(RigakuFile(joinpath(DATADIR, "three_column.ras")))
 
         @test scan.sample == "ThreeColSample"
         @test scan.target == "Mo"
@@ -88,7 +94,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     end
 
     @testset "Minimal .txt — missing metadata defaults" begin
-        scan = read_scan(joinpath(DATADIR, "minimal.txt"))
+        scan = only(RigakuFile(joinpath(DATADIR, "minimal.txt")))
 
         @test scan.sample == ""
         @test scan.comment == ""
@@ -111,7 +117,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     end
 
     @testset "Show methods" begin
-        scan = read_scan(joinpath(DATADIR, "simple.txt"))
+        scan = only(RigakuFile(joinpath(DATADIR, "simple.txt")))
 
         compact = sprint(show, scan)
         @test contains(compact, "RigakuScan")
@@ -127,14 +133,22 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test contains(full, "Acquired:")
 
         # Show on a scan with missing timestamp should not print Acquired line
-        minimal = read_scan(joinpath(DATADIR, "minimal.txt"))
+        minimal = only(RigakuFile(joinpath(DATADIR, "minimal.txt")))
         minimal_show = sprint(show, MIME("text/plain"), minimal)
         @test !contains(minimal_show, "Acquired:")
         @test !contains(minimal_show, "0001")
+
+        # RigakuFile show
+        file = RigakuFile(joinpath(DATADIR, "multiscan.ras"))
+        file_show = sprint(show, MIME("text/plain"), file)
+        @test contains(file_show, "2-element RigakuFile")
+        @test contains(file_show, "multiscan.ras")
+        @test contains(file_show, "[1]")
+        @test contains(file_show, "[2]")
     end
 
     @testset "Raw metadata access" begin
-        scan = read_scan(joinpath(DATADIR, "simple.txt"))
+        scan = only(RigakuFile(joinpath(DATADIR, "simple.txt")))
 
         @test haskey(scan.metadata, "FILE_TYPE")
         @test scan.metadata["FILE_TYPE"] == "RAS_RAW"
@@ -147,17 +161,21 @@ const DATADIR = joinpath(@__DIR__, "data")
     end
 
     @testset "Error paths" begin
-        @test_throws ArgumentError read_scan(joinpath(DATADIR, "empty.txt"))
-        @test_throws ArgumentError read_scans(joinpath(DATADIR, "empty.txt"))
+        @test_throws ArgumentError RigakuFile(joinpath(DATADIR, "empty.txt"))
 
         # Non-existent file surfaces a SystemError from readlines
         missing_path = joinpath(DATADIR, "does_not_exist.txt")
-        @test_throws SystemError read_scan(missing_path)
+        @test_throws SystemError RigakuFile(missing_path)
+    end
+
+    @testset "Type hierarchy" begin
+        @test RigakuFile <: AbstractVector{RigakuScan}
+        @test RigakuScan <: AbstractRigakuSpectrum
     end
 
     @testset "RAS header with no *RAS_INT_START block" begin
         # Header-only RAS file: the header parses, the data vectors are empty.
-        scan = read_scan(joinpath(DATADIR, "no_int_block.ras"))
+        scan = only(RigakuFile(joinpath(DATADIR, "no_int_block.ras")))
         @test scan.sample == "HeaderOnly"
         @test scan.target == "Cu"
         @test isempty(scan.x)
@@ -166,25 +184,25 @@ const DATADIR = joinpath(@__DIR__, "data")
     end
 
     @testset "Alternate datetime format y/m/d H:M:S" begin
-        scan = read_scan(joinpath(DATADIR, "iso_date.txt"))
+        scan = only(RigakuFile(joinpath(DATADIR, "iso_date.txt")))
         @test scan.start_time == DateTime(2025, 3, 14, 9, 0, 0)
         @test scan.end_time == DateTime(2025, 3, 14, 9, 5, 0)
     end
 
     @testset "Unparseable datetime warns and returns DateTime(1)" begin
-        scan = @test_logs (:warn, r"Could not parse Rigaku datetime") match_mode = :any read_scan(joinpath(DATADIR, "bad_date.txt"))
+        scan = @test_logs (:warn, r"Could not parse Rigaku datetime") match_mode = :any only(RigakuFile(joinpath(DATADIR, "bad_date.txt")))
         @test scan.start_time == DateTime(1)
         @test scan.sample == "BadDateSample"
     end
 
     @testset "Legacy HW_COUNTER_NAME-0 fallback" begin
-        scan = read_scan(joinpath(DATADIR, "counter_name.ras"))
+        scan = only(RigakuFile(joinpath(DATADIR, "counter_name.ras")))
         @test detector(scan) == "D/teX Ultra"
         @test length(scan) == 2
     end
 
     @testset "CRLF line endings" begin
-        scan = read_scan(joinpath(DATADIR, "crlf.txt"))
+        scan = only(RigakuFile(joinpath(DATADIR, "crlf.txt")))
         @test scan.sample == "CRLFSample"
         @test scan.target == "Cu"
         @test scan.wavelength ≈ 1.540593
@@ -196,7 +214,7 @@ const DATADIR = joinpath(@__DIR__, "data")
         # SubString is the canonical case that breaks String-typed signatures
         full_path = joinpath(DATADIR, "simple.txt")
         sub_path = SubString(full_path, 1, length(full_path))
-        scan = read_scan(sub_path)
+        scan = only(RigakuFile(sub_path))
         @test scan.sample == "ZIF-62 Test"
     end
 

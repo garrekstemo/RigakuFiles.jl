@@ -4,7 +4,7 @@ CurrentModule = RigakuFiles
 
 # File formats
 
-`read_scan` and [`read_scans`](@ref) auto-detect which of the two common Rigaku text layouts a file uses.
+[`RigakuFile`](@ref) auto-detects which of the two common Rigaku text layouts a file uses.
 
 ## Canonical `.ras`
 
@@ -29,7 +29,7 @@ Canonical `.ras` files are plain text with section markers. A typical single-sca
 *RAS_DATA_END
 ```
 
-Multi-scan files contain several `*RAS_HEADER_START … *RAS_INT_END` blocks inside a single outer `*RAS_DATA_START … *RAS_DATA_END` wrapper; [`read_scans`](@ref) returns each of them as a separate [`RigakuScan`](@ref).
+Multi-scan files contain several `*RAS_HEADER_START … *RAS_INT_END` blocks inside a single outer `*RAS_DATA_START … *RAS_DATA_END` wrapper; each block is parsed into its own [`RigakuScan`](@ref) element of the returned [`RigakuFile`](@ref).
 
 Some exports include a third column after intensity (attenuator coefficient). It is parsed and silently discarded — only the first two columns are stored.
 
