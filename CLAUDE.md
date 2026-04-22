@@ -6,7 +6,7 @@ A small Julia package that parses text output from Rigaku X-ray diffractometers 
 
 - Parses Rigaku `.ras` (canonical, with `*RAS_HEADER_START` / `*RAS_INT_START` section markers).
 - Parses the simplified `.txt` export (same `*KEY "VALUE"` metadata, no section markers).
-- Handles multi-scan files: `read_scans` returns a `Vector{RigakuScan}`; `read_scan` returns the first and warns.
+- Handles multi-scan files: [`read_scans`](@ref) returns a `Vector{RigakuScan}`; [`read_scan`](@ref) returns the first and warns.
 - Exposes common header fields (sample, target, wavelength, scan axis/mode, timestamps, units) as struct fields.
 - Preserves all raw header key/value pairs in `scan.metadata`.
 
@@ -40,7 +40,6 @@ docs/src/
 |--------|---------|
 | `read_scan(path)` | Load a single scan; warns and returns first if multi-scan. |
 | `read_scans(path)` | Load all scans; returns `Vector{RigakuScan}`. |
-| `RigakuScan(path)` | Outer constructor equivalent to `read_scan(path)`. |
 | `RigakuScan` | Concrete struct; 14 fields plus raw `metadata` dict. |
 | `AbstractRigakuSpectrum` | Supertype; interface: `x`, `y`, `metadata`. |
 | `wavelength_alpha1/2/beta(s)` | Kα1 / Kα2 / Kβ wavelengths (Å). |

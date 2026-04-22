@@ -33,8 +33,6 @@ using RigakuFiles
 using RigakuFiles
 
 scan = read_scan("mysample.ras")
-# or, equivalently:
-scan = RigakuScan("mysample.ras")
 
 scan.sample      # "ZIF-62 Test"
 scan.target      # "Cu"

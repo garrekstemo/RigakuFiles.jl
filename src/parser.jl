@@ -9,7 +9,6 @@ const _DATE_FORMATS = (dateformat"m/d/y H:M:S", dateformat"y/m/d H:M:S")
 
 """
     read_scan(path::AbstractString) -> RigakuScan
-    RigakuScan(path::AbstractString)
 
 Read a single scan from a Rigaku `.ras` or exported `.txt` file.
 Auto-detects the file format (canonical RAS with section markers vs
@@ -25,9 +24,6 @@ Use [`read_scans`](@ref) to load all scans from a multi-scan file.
 # Examples
 ```julia
 scan = read_scan("data/sample.txt")
-# or equivalently:
-scan = RigakuScan("data/sample.txt")
-
 scan.x       # 2θ values
 scan.y       # intensity values
 scan.target  # "Cu"
@@ -40,8 +36,6 @@ function read_scan(path::AbstractString)
     end
     return scans[1]
 end
-
-RigakuScan(path::AbstractString) = read_scan(path)
 
 """
     read_scans(path::AbstractString) -> Vector{RigakuScan}

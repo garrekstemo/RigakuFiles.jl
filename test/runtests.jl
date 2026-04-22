@@ -48,15 +48,6 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test scans[1].sample == "ZIF-62 Test"
     end
 
-    @testset "RigakuScan constructor is an alias for read_scan" begin
-        from_constructor = RigakuScan(joinpath(DATADIR, "simple.txt"))
-        from_function = read_scan(joinpath(DATADIR, "simple.txt"))
-        @test from_constructor isa RigakuScan
-        @test from_constructor.sample == from_function.sample
-        @test from_constructor.x == from_function.x
-        @test from_constructor.y == from_function.y
-    end
-
     @testset "Canonical .ras format — multi-scan" begin
         scans = read_scans(joinpath(DATADIR, "multiscan.ras"))
 

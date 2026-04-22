@@ -10,8 +10,6 @@ CurrentModule = RigakuFiles
 using RigakuFiles
 
 scan = read_scan("mysample.ras")
-# or, equivalently:
-scan = RigakuScan("mysample.ras")
 
 scan.sample      # "ZIF-62 Test"
 scan.target      # "Cu"
@@ -19,8 +17,6 @@ scan.wavelength  # 1.540593  (Kα1, Å)
 scan.x           # Vector{Float64} of 2θ values
 scan.y           # Vector{Float64} of intensities
 ```
-
-`read_scan` and the `RigakuScan(path)` outer constructor are equivalent — pick whichever reads better in context.
 
 ## Multi-scan files
 
