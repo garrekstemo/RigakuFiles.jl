@@ -13,14 +13,17 @@ const _DATE_FORMATS = (dateformat"m/d/y H:M:S", dateformat"y/m/d H:M:S")
 Read a Rigaku `.ras` or exported `.txt` file into a [`RigakuFile`](@ref)
 container holding one or more [`RigakuScan`](@ref)s.
 
-Auto-detects the file format (canonical RAS with `*RAS_HEADER_START` /
-`*RAS_INT_START` section markers vs simplified `.txt` export).
+Auto-detects the file format (canonical RAS, identified by `*RAS_DATA_START` /
+`*RAS_HEADER_START` markers, vs the simplified `.txt` export). Within a RAS
+scan block, intensity data is delimited by `*RAS_INT_START` / `*RAS_INT_END`.
 
 Use Base array verbs to navigate: `only(file)` for a strict single-scan
 assertion, `first(file)`, `file[i]`, iteration, `length(file)`.
 
 # Throws
-- `ArgumentError` if the file is empty or contains no parseable scans.
+- `ArgumentError` if the file is empty, or if a canonical `.ras` file contains no
+  `*RAS_HEADER_START` scan blocks. (A `.txt` export with no data rows yields a
+  single scan with empty `x`/`y` rather than throwing.)
 - `SystemError` if the file cannot be read from disk.
 
 # Examples
