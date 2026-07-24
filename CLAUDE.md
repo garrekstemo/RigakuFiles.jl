@@ -11,18 +11,11 @@ Parses text output from Rigaku X-ray diffractometers into a `RigakuFile` contain
 
 ## Structure
 
-Entry point: `src/parser.jl` (`RigakuFile` constructor, `_parse_ras`/`_parse_txt`/`_build_scan`/`_parse_datetime`). Types in `src/types.jl`, accessors in `src/utils.jl`. Browse `src/`.
+Entry point: `src/parser.jl`. Types in `src/types.jl`, accessors in `src/utils.jl`. Browse `src/`.
 
 ## Public API
 
-| Symbol | Notes |
-|--------|-------|
-| `RigakuFile(path)` | Entry point; `<: AbstractVector{RigakuScan}`. Navigate with Base verbs: `only` (strict single-scan), `first`, `file[i]`, iteration, `length`. |
-| `RigakuScan` | Concrete struct; 13 typed fields plus a raw `metadata` dict (14 fields total). |
-| `AbstractRigakuSpectrum` | Supertype; interface is `x`, `y`, `metadata`. |
-| `wavelength_alpha1/2/beta(s)` | Kα1 / Kα2 / Kβ wavelengths (Å). |
-| `scan_step(s)`, `scan_speed(s)` | Scan parameters. |
-| `detector(s)` | Detector name; falls back between `HW_COUNTER_SELECT_NAME` and `HW_COUNTER_NAME-0`. |
+Exports live in `src/RigakuFiles.jl`. Non-obvious contracts: `RigakuFile <: AbstractVector{RigakuScan}` — navigate with Base verbs (`only` for strict single-scan, indexing, iteration); `AbstractRigakuSpectrum`'s interface is `x`, `y`, `metadata`; `detector(s)` falls back between `HW_COUNTER_SELECT_NAME` and `HW_COUNTER_NAME-0`.
 
 ## Design decisions
 
@@ -44,4 +37,4 @@ Some `.ras` exports carry a third column after intensity. It is parsed then sile
 
 ## Registry status
 
-UUID `2299bd5a-4211-402e-a7bc-16f21a3e5d87`. Unregistered; planned first General submission at `v0.1.0` (verify it isn't yet registered before relying on this). Aqua.jl in the test suite; CI + codecov configured.
+UUID `2299bd5a-4211-402e-a7bc-16f21a3e5d87`. Unregistered; planned first General submission at `v0.1.0` (verify it isn't yet registered before relying on this).
